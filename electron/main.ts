@@ -36,6 +36,12 @@ const debugLog = (message: string) => {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] ${message}\n`;
   console.log(message);
+
+  // Forward to renderer console
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("debug:log", message);
+  }
+
   try {
     fs.appendFileSync(logFilePath, logMessage);
   } catch {

@@ -267,10 +267,14 @@ const App = () => {
       setSyncError(err);
       setTimeout(() => setSyncError(null), 10000);
     });
+    const unsubscribeDebug = window.api.onDebugLog((msg) => {
+      console.log(msg);
+    });
     return () => {
       unsubscribeTasks();
       unsubscribeAuth();
       unsubscribeSyncError();
+      unsubscribeDebug();
     };
   }, [loadFromMain]);
 

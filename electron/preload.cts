@@ -63,6 +63,14 @@ contextBridge.exposeInMainWorld("api", {
     };
   },
 
+  onDebugLog: (callback: (message: string) => void) => {
+    const handler = (_event: unknown, message: string) => callback(message);
+    ipcRenderer.on("debug:log", handler);
+    return () => {
+      ipcRenderer.removeListener("debug:log", handler);
+    };
+  },
+
   getSettings: () => ipcRenderer.invoke("settings:get") as Promise<AppSettings>,
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:set", settings),
   exportSettings: () => ipcRenderer.invoke("settings:export") as Promise<string>,

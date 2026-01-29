@@ -64,6 +64,7 @@ export interface IpcApi {
 
   onTasksChanged: (callback: () => void) => () => void;
   onSyncError: (callback: (error: string) => void) => () => void;
+  onDebugLog: (callback: (message: string) => void) => () => void;
 
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: AppSettings) => Promise<void>;
