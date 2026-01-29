@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld("api", {
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:set", settings),
   exportSettings: () => ipcRenderer.invoke("settings:export") as Promise<string>,
   importSettings: (payload: string) => ipcRenderer.invoke("settings:import", payload),
+  resetSync: () => ipcRenderer.invoke("tasks:reset-local-and-sync"),
   getWindowState: () => ipcRenderer.invoke("window:get") as Promise<WindowState | null>,
   getWindowBounds: () => ipcRenderer.invoke("window:get-bounds") as Promise<WindowState | null>,
   saveWindowState: (state: WindowState) => ipcRenderer.invoke("window:set", state),

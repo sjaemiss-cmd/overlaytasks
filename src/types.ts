@@ -70,6 +70,7 @@ export interface IpcApi {
   saveSettings: (settings: AppSettings) => Promise<void>;
   exportSettings: () => Promise<string>;
   importSettings: (payload: string) => Promise<void>;
+  resetSync: () => Promise<void>;
   getWindowState: () => Promise<WindowState | null>;
   getWindowBounds: () => Promise<WindowState | null>;
   saveWindowState: (state: WindowState) => Promise<void>;

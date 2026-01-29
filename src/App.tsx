@@ -1164,6 +1164,24 @@ const App = () => {
                         Sync Error: {syncError}
                       </div>
                     ) : null}
+                    {activeProfileKey && activeProfileKey !== "local" ? (
+                      <div className="mt-4 border-t border-white/10 pt-4">
+                        <div className="grid gap-2 text-xs uppercase tracking-[0.2em] text-slate-300">
+                          Troubleshooting
+                          <button
+                            onClick={async () => {
+                              if (confirm("Reset local data and force resync from cloud? This will re-download everything.")) {
+                                await window.api.resetSync();
+                                alert("Sync reset initiated. Data should appear shortly.");
+                              }
+                            }}
+                            className="w-full rounded bg-red-500/10 px-3 py-2 text-[10px] text-red-300 hover:bg-red-500/20 transition-colors border border-red-500/20"
+                          >
+                            FORCE CLOUD RESYNC
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
 

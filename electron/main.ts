@@ -980,6 +980,33 @@ app.whenReady().then(() => {
   ipcMain.handle("device:id", () => store.get("deviceId"));
 
   ipcMain.handle("profiles:active:get", () => getActiveProfileKey());
+  ipcMain.handle("tasks:reset-local-and-sync", () => {
+    const key = getActiveProfileKey();
+    if (key === "local") return;
+
+    debugLog(`[Sync] Resetting local state for ${key} to force full resync`);
+    const profiles = getProfilesSafe();
+    // We preserve nothing but the key structure ideally, but let's keep it safe
+    if (profiles[key]) {
+      profiles[key] = {
+        ...profiles[key],
+        tasks: [],
+        taskOrder: [],
+        manualOrder: false,
+        taskMeta: {},
+        oplog: [],
+        syncCursor: null // Reset cursor to pull from beginning
+      };
+      store.set("profiles", profiles);
+
+      // Notify frontend to clear UI immediately (optional, tasks:changed will fire later)
+      mainWindow?.webContents.send("tasks:changed");
+
+      // Restart loop to trigger immediate pull
+      startSyncLoop(key);
+    }
+  });
+
   ipcMain.handle("profiles:active:summary", () => {
     const key = getActiveProfileKey();
     const summaries = store.get("profileSummariesByKey");
