@@ -330,17 +330,26 @@ const stopSyncLoop = () => {
 };
 
 const startSyncLoop = (profileKey: string) => {
+  debugLog(`[Sync] startSyncLoop called for: ${profileKey}`);
   stopSyncLoop();
-  if (profileKey === "local") return;
+  if (profileKey === "local") {
+    debugLog(`[Sync] Skipping sync for local profile`);
+    return;
+  }
 
-  const token = store.get("firebaseRefreshTokensByUid")[profileKey];
+  const tokens = store.get("firebaseRefreshTokensByUid");
+  const token = tokens[profileKey];
+
   if (typeof token !== "string" || token.length === 0) {
+    debugLog(`[Sync] No refresh token found for ${profileKey}. Available tokens for: ${Object.keys(tokens).join(", ")}`);
     return;
   }
 
   // Run sync immediately on startup, then continue with interval
-  debugLog(`[Sync] Starting sync loop for profile: ${profileKey}`);
-  void syncEngine.tick(profileKey).catch((err) => {
+  debugLog(`[Sync] Starting sync loop for profile: ${profileKey}. Initial tick...`);
+  void syncEngine.tick(profileKey).then(() => {
+    debugLog(`[Sync] Initial tick completed`);
+  }).catch((err) => {
     debugLog(`[Sync] Initial sync failed: ${err instanceof Error ? err.message : String(err)}`);
   });
 

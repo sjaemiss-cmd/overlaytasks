@@ -148,9 +148,12 @@ export const createSyncEngine = (deps: SyncEngineDeps) => {
   };
 
   const pullDeltas = async (uid: string, state: ProfileLocalState) => {
+    console.log(`[SyncEngine] pullDeltas started for ${uid}, cursor: ${state.syncCursor}`);
     const client = createClient(uid);
     const cursor = normalizeIso(state.syncCursor);
     const deltas = await client.queryTaskDeltas(uid, cursor, 200);
+
+    console.log(`[SyncEngine] Pulled ${deltas.length} deltas`);
 
     if (deltas.length === 0) {
       return { nextState: state, didApply: false };
