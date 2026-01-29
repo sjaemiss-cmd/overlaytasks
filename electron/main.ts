@@ -891,6 +891,7 @@ app.whenReady().then(() => {
   ipcMain.handle("tasks:get", () => {
     debugLog(`[IPC] tasks:get requested`);
     const { tasks } = getActiveProfileStateForLegacyKeys();
+    debugLog(`[IPC] Returning ${tasks.length} tasks`);
     return tasks;
   });
   ipcMain.handle("tasks:set", (_event, tasks: Task[]) => {

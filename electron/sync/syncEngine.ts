@@ -154,6 +154,11 @@ export const createSyncEngine = (deps: SyncEngineDeps) => {
     const deltas = await client.queryTaskDeltas(uid, cursor, 200);
 
     console.log(`[SyncEngine] Pulled ${deltas.length} deltas`);
+    if (deltas.length > 0) {
+      deltas.forEach((d, i) => {
+        console.log(`[SyncEngine] Delta[${i}]: deletedAt=${d.meta.deletedAt}, id=${d.task.id}, title=${d.task.title}`);
+      });
+    }
 
     if (deltas.length === 0) {
       return { nextState: state, didApply: false };
