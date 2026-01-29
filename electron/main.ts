@@ -31,16 +31,33 @@ if (!gotSingleInstanceLock) {
 }
 
 // Debug logging to file
+// Debug logging to file
 const logFilePath = path.join(app.getPath("userData"), "debug.log");
+
+// Override console methods to forward logs to renderer
+const originalConsoleLog = console.log;
+const originalConsoleError = console.error;
+
+console.log = (...args: any[]) => {
+  originalConsoleLog(...args);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(" ");
+    mainWindow.webContents.send("debug:log", msg);
+  }
+};
+
+console.error = (...args: any[]) => {
+  originalConsoleError(...args);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const msg = args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : String(arg)).join(" ");
+    mainWindow.webContents.send("debug:log", `[ERROR] ${msg}`);
+  }
+};
+
 const debugLog = (message: string) => {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] ${message}\n`;
-  console.log(message);
-
-  // Forward to renderer console
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("debug:log", message);
-  }
+  console.log(message); // This will now trigger the IPC send via override
 
   try {
     fs.appendFileSync(logFilePath, logMessage);
