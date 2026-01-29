@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
 import {
   DndContext,
@@ -17,7 +17,7 @@ import { useTimeCheck } from "./hooks/useTimeCheck";
 import { createId } from "./utils/id";
 import { sortTasks } from "./utils/sortTasks";
 import { addMinutesToLocalDatetime } from "./utils/time";
-import type { AppSettings, FontSize, Language, SortMode, Task, ThemeMode } from "./types";
+import type { AppSettings, CloudConfigStatus, FontSize, Language, ProfileSummary, SortMode, Task, ThemeMode } from "./types";
 
 const defaultSettings: AppSettings = {
   startMode: "normal",
@@ -67,6 +67,9 @@ const App = () => {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [settingsDraft, setSettingsDraft] = useState<AppSettings>(defaultSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activeProfileKey, setActiveProfileKey] = useState<string>("");
+  const [activeProfileSummary, setActiveProfileSummary] = useState<ProfileSummary | null>(null);
+  const [cloudConfigStatus, setCloudConfigStatus] = useState<CloudConfigStatus | null>(null);
   const notifiedRef = useRef<Map<string, Set<number>>>(new Map());
   const t = useMemo(() => {
     const dictionary: Record<Language, Record<string, string>> = {
@@ -127,7 +130,16 @@ const App = () => {
         holdAction: "보류",
         deadline: "마감",
         created: "생성",
-        deadlineApproaching: "마감 임박"
+        deadlineApproaching: "마감 임박",
+        cloudSync: "클라우드 동기화",
+        login: "로그인",
+        logout: "로그아웃",
+        profile: "프로필",
+        status: "상태",
+        ready: "준비됨",
+        notReady: "설정 필요",
+        loggedInAs: "로그인됨:",
+        notLoggedIn: "로그인되지 않음"
       },
       en: {
         overlayTasks: "TODOs",
@@ -186,7 +198,16 @@ const App = () => {
         holdAction: "Hold",
         deadline: "Deadline",
         created: "Created",
-        deadlineApproaching: "Deadline approaching"
+        deadlineApproaching: "Deadline approaching",
+        cloudSync: "Cloud Sync",
+        login: "Login",
+        logout: "Logout",
+        profile: "Profile",
+        status: "Status",
+        ready: "Ready",
+        notReady: "Not Configured",
+        loggedInAs: "Logged in as:",
+        notLoggedIn: "Not logged in"
       }
     };
     return dictionary[settings.language];
@@ -203,28 +224,49 @@ const App = () => {
   });
   const [showScrollBar, setShowScrollBar] = useState(false);
 
+  const loadFromMain = useCallback(async () => {
+    if (!window.api) return;
+    try {
+      const [tasksData, orderState, settingsData, mode, profileKey, profileSummary, configStatus] = await Promise.all([
+        window.api.getTasks(),
+        window.api.getTaskOrder(),
+        window.api.getSettings(),
+        window.api.getWindowMode(),
+        window.api.getActiveProfileKey(),
+        window.api.getActiveProfileSummary(),
+        window.api.getCloudConfigStatus()
+      ]);
+      hydrateTasks(tasksData);
+      hydrateOrder(orderState.order, orderState.manualOrder);
+      setSettings(settingsData);
+      setSettingsDraft(settingsData);
+      setAutoSave(settingsData.autoSave);
+      setMiniMode(mode === "mini");
+      setActiveProfileKey(profileKey);
+      setActiveProfileSummary(profileSummary);
+      setCloudConfigStatus(configStatus);
+    } catch {
+      return;
+    }
+  }, [hydrateTasks, hydrateOrder, setAutoSave]);
+
+  useEffect(() => {
+    void loadFromMain();
+  }, [loadFromMain]);
+
   useEffect(() => {
     if (!window.api) return;
-    const load = async () => {
-      try {
-        const [tasksData, orderState, settingsData, mode] = await Promise.all([
-          window.api.getTasks(),
-          window.api.getTaskOrder(),
-          window.api.getSettings(),
-          window.api.getWindowMode()
-        ]);
-        hydrateTasks(tasksData);
-        hydrateOrder(orderState.order, orderState.manualOrder);
-        setSettings(settingsData);
-        setSettingsDraft(settingsData);
-        setAutoSave(settingsData.autoSave);
-        setMiniMode(mode === "mini");
-      } catch {
-        return;
-      }
+    const unsubscribeTasks = window.api.onTasksChanged(() => {
+      void loadFromMain();
+    });
+    const unsubscribeAuth = window.api.onAuthSessionChanged(() => {
+      void loadFromMain();
+    });
+    return () => {
+      unsubscribeTasks();
+      unsubscribeAuth();
     };
-    void load();
-  }, [hydrateTasks, hydrateOrder, setAutoSave]);
+  }, [loadFromMain]);
 
   useEffect(() => {
     document.body.classList.toggle("mini-mode", miniMode);
@@ -414,6 +456,16 @@ const App = () => {
     setSettingsOpen(false);
   };
 
+  const handleLogin = async () => {
+    if (!window.api) return;
+    await window.api.startGoogleLogin();
+  };
+
+  const handleLogout = async () => {
+    if (!window.api) return;
+    await window.api.signOut();
+  };
+
   const playBeep = () => {
     if (!settings.soundEnabled) return;
     try {
@@ -568,11 +620,10 @@ const App = () => {
     return (
       <button
         type="button"
-        className={`no-drag flex-1 rounded-2xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${
-          isActive
+        className={`no-drag flex-1 rounded-2xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${isActive
             ? "accent-pill"
             : "bg-white/5 text-slate-300 hover:bg-white/10"
-        }`}
+          }`}
         onClick={() => setActiveTab(tab)}
       >
         {label}
@@ -628,9 +679,8 @@ const App = () => {
       <div className="relative h-full w-full">
         {!miniMode && scrollMetrics.show ? (
           <div
-            className={`no-drag absolute right-2 top-3 bottom-3 z-30 w-2 transition-opacity duration-300 ${
-              showScrollBar ? "opacity-100" : "pointer-events-none opacity-0"
-            }`}
+            className={`no-drag absolute right-2 top-3 bottom-3 z-30 w-2 transition-opacity duration-300 ${showScrollBar ? "opacity-100" : "pointer-events-none opacity-0"
+              }`}
           >
             <div
               className="relative h-full rounded-full bg-white/5"
@@ -646,13 +696,13 @@ const App = () => {
                 el.scrollTop = nextTop * maxScrollTop;
               }}
             >
-                <button
-                  type="button"
-                  className="scroll-thumb absolute left-0 right-0 rounded-full transition-opacity"
-                  style={{
-                    height: `${scrollMetrics.thumbHeight}px`,
-                    transform: `translateY(${scrollMetrics.thumbTop}px)`
-                  }}
+              <button
+                type="button"
+                className="scroll-thumb absolute left-0 right-0 rounded-full transition-opacity"
+                style={{
+                  height: `${scrollMetrics.thumbHeight}px`,
+                  transform: `translateY(${scrollMetrics.thumbTop}px)`
+                }}
                 onPointerDown={(event) => {
                   const el = scrollRef.current;
                   if (!el) return;
@@ -669,37 +719,33 @@ const App = () => {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className={`scroll-area h-full w-full ${
-            miniMode ? "overflow-hidden" : "overflow-y-auto"
-          } ${miniMode ? "" : "px-4"}`}
+          className={`scroll-area h-full w-full ${miniMode ? "overflow-hidden" : "overflow-y-auto"
+            } ${miniMode ? "" : "px-4"}`}
         >
           <div
-            className={`flex min-h-full w-full ${
-              miniMode ? "items-start justify-start" : "items-start justify-center"
-            }`}
+            className={`flex min-h-full w-full ${miniMode ? "items-start justify-start" : "items-start justify-center"
+              }`}
           >
             <div
-              className={`relative mx-auto flex w-full max-w-md flex-col ${
-                miniMode ? "gap-2" : "gap-4"
-              }`}
+              className={`relative mx-auto flex w-full max-w-md flex-col ${miniMode ? "gap-2" : "gap-4"
+                }`}
             >
               {!miniMode ? (
                 <div className="pointer-events-none absolute inset-0 -z-10 rounded-[32px] bg-[radial-gradient(circle_at_20%_20%,rgba(56,189,248,0.18),transparent_55%),radial-gradient(circle_at_80%_10%,rgba(34,197,94,0.14),transparent_50%),linear-gradient(135deg,rgba(15,23,42,0.75),rgba(2,6,23,0.85))]" />
               ) : null}
               <CustomTitleBar
-          title={miniMode ? "" : t.overlayTasks}
+                title={miniMode ? "" : t.overlayTasks}
                 titleContent={
                   miniMode ? (
                     <div className="flex min-w-0 items-center gap-2">
                       <span className="truncate text-xs font-semibold tracking-normal text-slate-100">
-                    {nextTask ? nextTask.title : t.noActiveTasks}
+                        {nextTask ? nextTask.title : t.noActiveTasks}
                       </span>
                       <span className="shrink-0 text-[10px] uppercase tracking-[0.2em] text-slate-300">
-                      {nextTask
-                        ? `${Math.max(0, dayjs(nextTask.deadline).diff(now, "minute"))} ${
-                            t.minShort
+                        {nextTask
+                          ? `${Math.max(0, dayjs(nextTask.deadline).diff(now, "minute"))} ${t.minShort
                           }`
-                        : "--"}
+                          : "--"}
                       </span>
                     </div>
                   ) : undefined
@@ -711,7 +757,7 @@ const App = () => {
                     : "min-h-[52px]"
                 }
                 actions={
-                <div
+                  <div
                     className={miniMode ? "flex items-center gap-1" : "flex items-center gap-2"}
                   >
                     {!miniMode ? (
@@ -752,15 +798,13 @@ const App = () => {
               {!miniMode ? (
                 <div className="panel-glass rounded-3xl border border-white/10 p-3">
                   <div
-                    className={`grid transition-all duration-300 ease-out ${
-                      isAddOpen ? "max-h-[420px] opacity-100" : "max-h-[64px] opacity-90"
-                    }`}
+                    className={`grid transition-all duration-300 ease-out ${isAddOpen ? "max-h-[420px] opacity-100" : "max-h-[64px] opacity-90"
+                      }`}
                   >
                     <button
                       type="button"
-                      className={`no-drag flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-slate-200 transition hover:bg-white/10 ${
-                        isAddOpen ? "mb-3" : ""
-                      }`}
+                      className={`no-drag flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-slate-200 transition hover:bg-white/10 ${isAddOpen ? "mb-3" : ""
+                        }`}
                       onClick={() => setIsAddOpen((prev) => !prev)}
                       aria-label="Toggle add task form"
                     >
@@ -770,9 +814,8 @@ const App = () => {
                       </span>
                     </button>
                     <div
-                      className={`grid gap-3 overflow-hidden transition-all duration-300 ease-out ${
-                        isAddOpen ? "max-h-[360px] opacity-100" : "max-h-0 opacity-0"
-                      }`}
+                      className={`grid gap-3 overflow-hidden transition-all duration-300 ease-out ${isAddOpen ? "max-h-[360px] opacity-100" : "max-h-0 opacity-0"
+                        }`}
                     >
                       <input
                         value={title}
@@ -837,11 +880,11 @@ const App = () => {
                         />
                         <button
                           type="button"
-                        className="accent-button no-drag flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 text-lg font-semibold text-white transition"
-                        onClick={handleAddTask}
-                      >
-                        +
-                      </button>
+                          className="accent-button no-drag flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 text-lg font-semibold text-white transition"
+                          onClick={handleAddTask}
+                        >
+                          +
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -930,22 +973,22 @@ const App = () => {
               <div className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-200">
                 {t.settings}
               </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="no-drag rounded-full border border-white/20 px-3 py-1 text-xs text-slate-100 transition hover:bg-white/10"
-                    onClick={() => setSettingsOpen(false)}
-                  >
-                    {t.close}
-                  </button>
-                  <button
-                    type="button"
-                    className="accent-button no-drag rounded-full border border-white/20 px-3 py-1 text-xs text-white transition"
-                    onClick={handleSaveSettings}
-                  >
-                    {t.save}
-                  </button>
-                </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="no-drag rounded-full border border-white/20 px-3 py-1 text-xs text-slate-100 transition hover:bg-white/10"
+                  onClick={() => setSettingsOpen(false)}
+                >
+                  {t.close}
+                </button>
+                <button
+                  type="button"
+                  className="accent-button no-drag rounded-full border border-white/20 px-3 py-1 text-xs text-white transition"
+                  onClick={handleSaveSettings}
+                >
+                  {t.save}
+                </button>
+              </div>
             </div>
             <div className="max-h-[78vh] overflow-y-auto px-6 py-5">
               <div className="grid gap-6">
@@ -1053,12 +1096,59 @@ const App = () => {
                       {t.launchOnStartup}
                       <input
                         type="checkbox"
-                      checked={settingsDraft.launchOnStartup}
-                      onChange={(event) =>
+                        checked={settingsDraft.launchOnStartup}
+                        onChange={(event) =>
                           updateSettingsDraft({ launchOnStartup: event.target.checked })
-                      }
-                    />
-                  </label>
+                        }
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                <section className="grid gap-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-300">
+                    {t.cloudSync}
+                  </div>
+                  <div className="grid gap-4 rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="grid gap-1">
+                        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
+                          {t.status}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                          <div className={`h-2 w-2 rounded-full ${cloudConfigStatus?.isReady ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"}`} />
+                          {cloudConfigStatus?.isReady ? t.ready : t.notReady}
+                        </div>
+                      </div>
+                      {activeProfileKey && activeProfileKey !== "local" ? (
+                        <button
+                          type="button"
+                          className="no-drag rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-200 transition hover:bg-white/10 hover:text-rose-400"
+                          onClick={handleLogout}
+                        >
+                          {t.logout}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="accent-button no-drag rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
+                          onClick={handleLogin}
+                          disabled={!cloudConfigStatus?.isReady}
+                        >
+                          {t.login}
+                        </button>
+                      )}
+                    </div>
+                    {activeProfileKey && activeProfileKey !== "local" ? (
+                      <div className="flex items-center gap-2 rounded-lg bg-black/20 px-3 py-2">
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                          {t.loggedInAs}
+                        </div>
+                        <div className="truncate text-xs text-slate-200">
+                          {activeProfileSummary?.email || activeProfileSummary?.displayName || activeProfileKey}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </section>
 
@@ -1102,10 +1192,10 @@ const App = () => {
                       {t.sound}
                       <input
                         type="checkbox"
-                      checked={settingsDraft.soundEnabled}
-                      onChange={(event) => updateSettingsDraft({ soundEnabled: event.target.checked })}
-                    />
-                  </label>
+                        checked={settingsDraft.soundEnabled}
+                        onChange={(event) => updateSettingsDraft({ soundEnabled: event.target.checked })}
+                      />
+                    </label>
                   </div>
                 </section>
 
@@ -1131,38 +1221,38 @@ const App = () => {
                       {t.manualOrderPriority}
                       <input
                         type="checkbox"
-                      checked={settingsDraft.manualOrderPriority}
-                      onChange={(event) =>
+                        checked={settingsDraft.manualOrderPriority}
+                        onChange={(event) =>
                           updateSettingsDraft({ manualOrderPriority: event.target.checked })
-                      }
-                    />
-                  </label>
+                        }
+                      />
+                    </label>
                     <label className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs uppercase tracking-[0.2em] text-slate-300">
                       {t.hideCompletedTab}
                       <input
                         type="checkbox"
-                      checked={settingsDraft.hideCompletedTab}
-                      onChange={(event) =>
+                        checked={settingsDraft.hideCompletedTab}
+                        onChange={(event) =>
                           updateSettingsDraft({ hideCompletedTab: event.target.checked })
-                      }
-                    />
-                  </label>
+                        }
+                      />
+                    </label>
                     <label className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs uppercase tracking-[0.2em] text-slate-300">
                       {t.hideHoldTab}
                       <input
                         type="checkbox"
-                      checked={settingsDraft.hideHoldTab}
-                      onChange={(event) => updateSettingsDraft({ hideHoldTab: event.target.checked })}
-                    />
-                  </label>
+                        checked={settingsDraft.hideHoldTab}
+                        onChange={(event) => updateSettingsDraft({ hideHoldTab: event.target.checked })}
+                      />
+                    </label>
                     <label className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-xs uppercase tracking-[0.2em] text-slate-300">
                       {t.autoSave}
                       <input
                         type="checkbox"
-                      checked={settingsDraft.autoSave}
-                      onChange={(event) => updateSettingsDraft({ autoSave: event.target.checked })}
-                    />
-                  </label>
+                        checked={settingsDraft.autoSave}
+                        onChange={(event) => updateSettingsDraft({ autoSave: event.target.checked })}
+                      />
+                    </label>
                   </div>
                 </section>
 

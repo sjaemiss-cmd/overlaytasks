@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
   AppSettings,
+  CloudConfig,
+  CloudConfigStatus,
+  GoogleOAuthStartResult,
+  ProfileSummary,
   Task,
   TaskOrderState,
   WindowMode,
@@ -13,6 +17,44 @@ contextBridge.exposeInMainWorld("api", {
   saveTasks: (tasks: Task[]) => ipcRenderer.invoke("tasks:set", tasks),
   getTaskOrder: () => ipcRenderer.invoke("tasks:order:get") as Promise<TaskOrderState>,
   saveTaskOrder: (state: TaskOrderState) => ipcRenderer.invoke("tasks:order:set", state),
+
+  getCloudConfig: () => ipcRenderer.invoke("cloud:config:get") as Promise<CloudConfig>,
+  getCloudConfigStatus: () => ipcRenderer.invoke("cloud:config:status") as Promise<CloudConfigStatus>,
+  setCloudConfig: (config: CloudConfig) => ipcRenderer.invoke("cloud:config:set", config),
+
+  getDeviceId: () => ipcRenderer.invoke("device:id") as Promise<string>,
+
+  getActiveProfileKey: () => ipcRenderer.invoke("profiles:active:get") as Promise<string>,
+  getActiveProfileSummary: () => ipcRenderer.invoke("profiles:active:summary") as Promise<ProfileSummary | null>,
+  setActiveProfileKey: (profileKey: string) => ipcRenderer.invoke("profiles:active:set", profileKey),
+
+  onAuthDeepLink: (callback: (url: string) => void) => {
+    const handler = (_event: unknown, url: string) => callback(url);
+    ipcRenderer.on("auth:deep-link", handler);
+    return () => {
+      ipcRenderer.removeListener("auth:deep-link", handler);
+    };
+  },
+
+  startGoogleLogin: () => ipcRenderer.invoke("auth:start-google") as Promise<GoogleOAuthStartResult>,
+  signOut: () => ipcRenderer.invoke("auth:signout"),
+
+  onAuthSessionChanged: (callback: (profileKey: string) => void) => {
+    const handler = (_event: unknown, profileKey: string) => callback(profileKey);
+    ipcRenderer.on("auth:session-changed", handler);
+    return () => {
+      ipcRenderer.removeListener("auth:session-changed", handler);
+    };
+  },
+
+  onTasksChanged: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("tasks:changed", handler);
+    return () => {
+      ipcRenderer.removeListener("tasks:changed", handler);
+    };
+  },
+
   getSettings: () => ipcRenderer.invoke("settings:get") as Promise<AppSettings>,
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:set", settings),
   exportSettings: () => ipcRenderer.invoke("settings:export") as Promise<string>,

@@ -12,7 +12,15 @@
   },
   "include": [
     "main.ts",
+    "deepLink.ts",
+    "auth/googleOAuth.ts",
+    "auth/firebaseSession.ts",
+    "auth/tokenStore.ts",
+    "firestore/client.ts",
+    "firestore/value.ts",
+    "sync/syncEngine.ts",
     "preload.cts",
+    "cloudConfig.ts",
     "types.ts"
   ]
 }

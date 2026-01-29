@@ -54,5 +54,52 @@ export interface AppSettings {
   fontSize: FontSize;
 }
 
+export interface CloudConfig {
+  firebaseWebApiKey: string;
+  firebaseProjectId: string;
+  googleOAuthClientId: string;
+  oauthRedirectScheme: string;
+}
+
+export interface CloudConfigStatus {
+  hasFirebaseWebApiKey: boolean;
+  hasFirebaseProjectId: boolean;
+  hasGoogleOAuthClientId: boolean;
+  hasOauthRedirectScheme: boolean;
+  isReady: boolean;
+}
+
+export type ProfileKind = "local" | "firebase";
+
+export interface ProfileSummary {
+  profileKey: string;
+  kind: ProfileKind;
+  uid?: string;
+  email?: string;
+  displayName?: string;
+}
+
+export type SyncState = "disabled" | "idle" | "syncing" | "offline" | "error";
+
+export interface SyncStatus {
+  state: SyncState;
+  lastSyncAt?: string;
+  lastError?: string;
+}
+
+export interface GoogleOAuthStartResult {
+  authUrl: string;
+  state: string;
+}
+
+export interface FirebaseSession {
+  uid: string;
+  idToken: string;
+  refreshToken: string;
+  expiresAt: string;
+  email?: string;
+  displayName?: string;
+}
+
 // Force emit
 export const _types_check = true;

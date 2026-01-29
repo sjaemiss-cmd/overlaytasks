@@ -1,8 +1,15 @@
 import type {
   AppSettings,
+  CloudConfig,
+  CloudConfigStatus,
+  GoogleOAuthStartResult,
   FontSize,
   Language,
+  ProfileKind,
+  ProfileSummary,
   SortMode,
+  SyncState,
+  SyncStatus,
   Task,
   TaskOrderState,
   TaskStatus,
@@ -14,9 +21,16 @@ import type {
 
 export type {
   AppSettings,
+  CloudConfig,
+  CloudConfigStatus,
+  GoogleOAuthStartResult,
   FontSize,
   Language,
+  ProfileKind,
+  ProfileSummary,
   SortMode,
+  SyncState,
+  SyncStatus,
   Task,
   TaskOrderState,
   TaskStatus,
@@ -31,6 +45,25 @@ export interface IpcApi {
   saveTasks: (tasks: Task[]) => Promise<void>;
   getTaskOrder: () => Promise<TaskOrderState>;
   saveTaskOrder: (state: TaskOrderState) => Promise<void>;
+
+  getCloudConfig: () => Promise<CloudConfig>;
+  getCloudConfigStatus: () => Promise<CloudConfigStatus>;
+  setCloudConfig: (config: CloudConfig) => Promise<void>;
+
+  getDeviceId: () => Promise<string>;
+
+  getActiveProfileKey: () => Promise<string>;
+  getActiveProfileSummary: () => Promise<ProfileSummary | null>;
+  setActiveProfileKey: (profileKey: string) => Promise<void>;
+
+  onAuthDeepLink: (callback: (url: string) => void) => () => void;
+
+  startGoogleLogin: () => Promise<GoogleOAuthStartResult>;
+  signOut: () => Promise<void>;
+  onAuthSessionChanged: (callback: (profileKey: string) => void) => () => void;
+
+  onTasksChanged: (callback: () => void) => () => void;
+
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: AppSettings) => Promise<void>;
   exportSettings: () => Promise<string>;
