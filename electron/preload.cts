@@ -55,6 +55,14 @@ contextBridge.exposeInMainWorld("api", {
     };
   },
 
+  onSyncError: (callback: (error: string) => void) => {
+    const handler = (_event: unknown, error: string) => callback(error);
+    ipcRenderer.on("sync:error", handler);
+    return () => {
+      ipcRenderer.removeListener("sync:error", handler);
+    };
+  },
+
   getSettings: () => ipcRenderer.invoke("settings:get") as Promise<AppSettings>,
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:set", settings),
   exportSettings: () => ipcRenderer.invoke("settings:export") as Promise<string>,

@@ -69,6 +69,7 @@ const App = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeProfileKey, setActiveProfileKey] = useState<string>("");
   const [activeProfileSummary, setActiveProfileSummary] = useState<ProfileSummary | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [cloudConfigStatus, setCloudConfigStatus] = useState<CloudConfigStatus | null>(null);
   const notifiedRef = useRef<Map<string, Set<number>>>(new Map());
   const t = useMemo(() => {
@@ -262,9 +263,14 @@ const App = () => {
     const unsubscribeAuth = window.api.onAuthSessionChanged(() => {
       void loadFromMain();
     });
+    const unsubscribeSyncError = window.api.onSyncError((err) => {
+      setSyncError(err);
+      setTimeout(() => setSyncError(null), 10000);
+    });
     return () => {
       unsubscribeTasks();
       unsubscribeAuth();
+      unsubscribeSyncError();
     };
   }, [loadFromMain]);
 
@@ -621,8 +627,8 @@ const App = () => {
       <button
         type="button"
         className={`no-drag flex-1 rounded-2xl px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${isActive
-            ? "accent-pill"
-            : "bg-white/5 text-slate-300 hover:bg-white/10"
+          ? "accent-pill"
+          : "bg-white/5 text-slate-300 hover:bg-white/10"
           }`}
         onClick={() => setActiveTab(tab)}
       >
@@ -1147,6 +1153,11 @@ const App = () => {
                         <div className="truncate text-xs text-slate-200">
                           {activeProfileSummary?.email || activeProfileSummary?.displayName || activeProfileKey}
                         </div>
+                      </div>
+                    ) : null}
+                    {syncError ? (
+                      <div className="mt-2 text-[10px] text-red-400 border border-red-500/20 bg-red-500/10 rounded px-2 py-1 break-all">
+                        Sync Error: {syncError}
                       </div>
                     ) : null}
                   </div>

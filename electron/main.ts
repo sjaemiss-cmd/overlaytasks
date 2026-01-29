@@ -350,12 +350,16 @@ const startSyncLoop = (profileKey: string) => {
   void syncEngine.tick(profileKey).then(() => {
     debugLog(`[Sync] Initial tick completed`);
   }).catch((err) => {
-    debugLog(`[Sync] Initial sync failed: ${err instanceof Error ? err.message : String(err)}`);
+    const msg = err instanceof Error ? err.message : String(err);
+    debugLog(`[Sync] Initial sync failed: ${msg}`);
+    mainWindow?.webContents.send("sync:error", msg);
   });
 
   syncTimer = setInterval(() => {
-    void syncEngine.tick(profileKey).catch(() => {
-      return;
+    void syncEngine.tick(profileKey).catch((err) => {
+      // Also notify on interval errors if needed, but maybe too noisy. 
+      // Let's debug initial sync first.
+      console.error("[SyncLoop] Error:", err);
     });
   }, 10_000);
 };
