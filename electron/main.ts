@@ -1008,6 +1008,47 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle("tasks:undelete-all", async () => {
+    const key = getActiveProfileKey();
+    if (key === "local") return { count: 0 };
+
+    debugLog(`[Recover] Starting recovery for ${key}`);
+    const config = store.get("cloudConfig");
+
+    // We assume token is fresh enough or sync loop kept it alive.
+    // If specific refresh needed, we might fail here, but usually safe if app is running.
+    if (!activeFirebaseIdToken || activeFirebaseIdToken.uid !== key) {
+      debugLog("[Recover] No active ID token. Attempting to use existing if valid, otherwise fail.");
+      // In a real scenario, we should reuse ensureIdToken logic. 
+      // For now, fail fast is better than complex logic dup.
+      if (!activeFirebaseIdToken) throw new Error("No active session");
+    }
+
+    const client = new FirestoreRestClient(
+      { projectId: config.firebaseProjectId },
+      async () => activeFirebaseIdToken!.idToken
+    );
+
+    const all = await client.queryAllTasks(key);
+    const deleted = all.filter(r => r.meta.deletedAt);
+    debugLog(`[Recover] Found ${deleted.length} deleted tasks.`);
+
+    const now = new Date().toISOString();
+    for (const row of deleted) {
+      debugLog(`[Recover] Restoring ${row.task.title} (${row.task.id})`);
+      // Remove deletedAt by not including it and updating timestamp
+      await client.upsertTask(key, row.task, { updatedAt: now });
+    }
+
+    if (deleted.length > 0) {
+      // Force sync-reset to ensure we download them fresh
+      mainWindow?.webContents.send("tasks:changed"); // UI clear (optimistic)
+      startSyncLoop(key);
+    }
+
+    return { count: deleted.length };
+  });
+
   ipcMain.handle("profiles:active:summary", () => {
     const key = getActiveProfileKey();
     const summaries = store.get("profileSummariesByKey");

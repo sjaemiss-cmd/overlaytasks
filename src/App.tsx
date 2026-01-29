@@ -1179,6 +1179,18 @@ const App = () => {
                           >
                             FORCE CLOUD RESYNC
                           </button>
+
+                          <button
+                            onClick={async () => {
+                              if (confirm("Warning: This will attempt to restore ALL deleted tasks from the server. Continue?")) {
+                                const res = await window.api.undeleteAll();
+                                alert(`Recovery initiated. Restored ${res.count} tasks.`);
+                              }
+                            }}
+                            className="w-full mt-2 rounded bg-yellow-500/10 px-3 py-2 text-[10px] text-yellow-300 hover:bg-yellow-500/20 transition-colors border border-yellow-500/20"
+                          >
+                            RESTORE DELETED TASKS
+                          </button>
                         </div>
                       </div>
                     ) : null}

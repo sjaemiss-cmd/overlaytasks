@@ -71,6 +71,7 @@ export interface IpcApi {
   exportSettings: () => Promise<string>;
   importSettings: (payload: string) => Promise<void>;
   resetSync: () => Promise<void>;
+  undeleteAll: () => Promise<{ count: number }>;
   getWindowState: () => Promise<WindowState | null>;
   getWindowBounds: () => Promise<WindowState | null>;
   saveWindowState: (state: WindowState) => Promise<void>;
