@@ -181,3 +181,56 @@
 - Commands run: none.
 - Verification: not run (typescript-language-server not installed).
 - Result: success (changes applied).
+
+### 2026-01-29 22:29 KST
+- Request summary: Implement fixes for mini-mode sync, tray icon, DnD UX, and persistence; setup test environment.
+- Files touched: package.json, vitest.config.ts, vitest.setup.ts, src/utils/time.test.ts, src/utils/sortTasks.test.ts, electron/main.ts, electron/preload.cts, src/types.ts, src/App.tsx, src/hooks/useTaskStore.ts, src/components/TaskItem.tsx, src/components/SortableTaskItem.tsx.
+- Commands run: npm install, npm test, npm run typecheck, npm run build.
+- Verification: 
+  - Vitest passed (2 test files, 5 tests).
+  - Typecheck passed.
+  - Build passed (dist-electron and dist generated).
+- Result: success (changes applied and verified).
+
+### 2026-01-30 04:21 KST
+- Request summary: Fix packaged window rendering by using relative Vite asset paths; mitigate Windows electron-builder app.asar lock by using unique output dir per build.
+- Files touched: vite.config.ts, package.json, scripts/electron-builder.mjs.
+- Commands run: npm test, npm run typecheck, npm run build, npm run dist (x2).
+- Verification:
+  - Vitest passed (2 test files, 5 tests).
+  - Typecheck passed.
+  - Build passed.
+  - dist/index.html now references ./assets/* (relative, compatible with Electron loadFile/file://).
+  - electron-builder succeeded twice, producing build_dist/run-*/ outputs (no app.asar removal lock).
+- Result: success.
+
+### 2026-01-30 04:29 KST
+- Request summary: Fix deadline add-time chips so repeated presses of the same chip cumulatively add time; rebuild executable.
+- Files touched: src/App.tsx.
+- Commands run: npm test, npm run typecheck, npm run dist.
+- Verification:
+  - Vitest passed (2 test files, 5 tests).
+  - Typecheck passed.
+  - electron-builder completed successfully (output under build_dist/run-20260130-042935).
+- Result: success.
+
+### 2026-01-30 04:36 KST
+- Request summary: Resume interrupted session; re-verify packaged window + electron-builder lock mitigations; rebuild executable.
+- Files touched: none (verification/build only).
+- Commands run: npm test, npm run typecheck, npm run build, npm run dist.
+- Verification:
+  - Vitest passed (2 test files, 5 tests).
+  - Typecheck passed.
+  - Build passed.
+  - electron-builder completed successfully (output under build_dist/run-20260130-043616).
+- Result: success.
+
+### 2026-01-30 04:41 KST
+- Request summary: Make deadline add-time chips reliably cumulative on repeated/rapid clicks by using functional state update; add unit test; rebuild executable.
+- Files touched: src/App.tsx, src/utils/time.ts, src/utils/time.test.ts.
+- Commands run: npm test, npm run typecheck, npm run dist.
+- Verification:
+  - Vitest passed (2 test files, 7 tests).
+  - Typecheck passed.
+  - electron-builder completed successfully (output under build_dist/run-20260130-044138).
+- Result: success.

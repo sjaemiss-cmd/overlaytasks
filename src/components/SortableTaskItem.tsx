@@ -33,7 +33,7 @@ const SortableTaskItem = ({ id, children }: SortableTaskItemProps) => {
     <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : ""}>
       {children({
         listeners,
-        attributes,
+        attributes: attributes as unknown as Record<string, string>,
         setActivatorNodeRef
       })}
     </div>

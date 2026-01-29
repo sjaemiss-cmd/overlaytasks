@@ -49,11 +49,10 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const nextTasks = [...current.tasks, task];
     const nextOrder = current.manualOrder ? [...current.order, task.id] : current.order;
     set({ tasks: nextTasks, order: nextOrder });
-    if (current.autoSave) {
-      void persistTasks(nextTasks);
-      if (current.manualOrder) {
-        void persistOrder(nextOrder, true);
-      }
+    
+    void persistTasks(nextTasks);
+    if (current.manualOrder) {
+      void persistOrder(nextOrder, true);
     }
   },
   updateStatus: (id, status) => {
@@ -61,42 +60,32 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       task.id === id ? { ...task, status } : task
     );
     set({ tasks: next });
-    if (get().autoSave) {
-      void persistTasks(next);
-    }
+    void persistTasks(next);
   },
   updateTask: (id, updates) => {
     const next = get().tasks.map((task) =>
       task.id === id ? { ...task, ...updates } : task
     );
     set({ tasks: next });
-    if (get().autoSave) {
-      void persistTasks(next);
-    }
+    void persistTasks(next);
   },
   removeTask: (id) => {
     const current = get();
     const nextTasks = current.tasks.filter((task) => task.id !== id);
     const nextOrder = current.order.filter((taskId) => taskId !== id);
     set({ tasks: nextTasks, order: nextOrder });
-    if (current.autoSave) {
-      void persistTasks(nextTasks);
-      if (current.manualOrder) {
-        void persistOrder(nextOrder, current.manualOrder);
-      }
+    void persistTasks(nextTasks);
+    if (current.manualOrder) {
+      void persistOrder(nextOrder, current.manualOrder);
     }
   },
   setOrder: (order) => {
     set({ order, manualOrder: true });
-    if (get().autoSave) {
-      void persistOrder(order, true);
-    }
+    void persistOrder(order, true);
   },
   resetOrder: () => {
     set({ manualOrder: false, order: [] });
-    if (get().autoSave) {
-      void persistOrder([], false);
-    }
+    void persistOrder([], false);
   },
   resetLocal: () => {
     set({ tasks: [], manualOrder: false, order: [] });

@@ -16,6 +16,7 @@ import { useTaskStore } from "./hooks/useTaskStore";
 import { useTimeCheck } from "./hooks/useTimeCheck";
 import { createId } from "./utils/id";
 import { sortTasks } from "./utils/sortTasks";
+import { addMinutesToLocalDatetime } from "./utils/time";
 import type { AppSettings, FontSize, Language, SortMode, Task, ThemeMode } from "./types";
 
 const defaultSettings: AppSettings = {
@@ -70,7 +71,7 @@ const App = () => {
   const t = useMemo(() => {
     const dictionary: Record<Language, Record<string, string>> = {
       ko: {
-        overlayTasks: "오버레이 태스크",
+        overlayTasks: "TODOs",
         noActiveTasks: "진행 중 일정 없음",
         progress: "진행",
         completed: "완료",
@@ -129,7 +130,7 @@ const App = () => {
         deadlineApproaching: "마감 임박"
       },
       en: {
-        overlayTasks: "OVERLAY TASKS",
+        overlayTasks: "TODOs",
         noActiveTasks: "No active tasks",
         progress: "Progress",
         completed: "Completed",
@@ -206,16 +207,18 @@ const App = () => {
     if (!window.api) return;
     const load = async () => {
       try {
-        const [tasksData, orderState, settingsData] = await Promise.all([
+        const [tasksData, orderState, settingsData, mode] = await Promise.all([
           window.api.getTasks(),
           window.api.getTaskOrder(),
-          window.api.getSettings()
+          window.api.getSettings(),
+          window.api.getWindowMode()
         ]);
         hydrateTasks(tasksData);
         hydrateOrder(orderState.order, orderState.manualOrder);
         setSettings(settingsData);
         setSettingsDraft(settingsData);
         setAutoSave(settingsData.autoSave);
+        setMiniMode(mode === "mini");
       } catch {
         return;
       }
@@ -245,6 +248,20 @@ const App = () => {
       void window.api.setAlwaysOnTop(settings.alwaysOnTop);
     }
   }, [settings, setAutoSave]);
+
+  // Preview settings changes from draft immediately
+  useEffect(() => {
+    if (!settingsOpen) return;
+    document.body.dataset.theme = settingsDraft.theme;
+    document.documentElement.style.setProperty("--panel-opacity", String(settingsDraft.panelOpacity));
+    const softOpacity = Math.max(0.4, settingsDraft.panelOpacity - 0.2);
+    const strongOpacity = Math.max(0.5, settingsDraft.panelOpacity - 0.1);
+    document.documentElement.style.setProperty("--panel-opacity-soft", String(softOpacity));
+    document.documentElement.style.setProperty("--panel-opacity-strong", String(strongOpacity));
+    document.documentElement.style.setProperty("--panel-blur", `${settingsDraft.panelBlur}px`);
+    const scaleMap: Record<FontSize, number> = { sm: 0.92, md: 1, lg: 1.08 };
+    document.documentElement.style.setProperty("--font-scale", String(scaleMap[settingsDraft.fontSize]));
+  }, [settingsOpen, settingsDraft]);
 
   useEffect(() => {
     if (!window.api) return;
@@ -586,7 +603,7 @@ const App = () => {
   };
 
   const setDeadlineByMinutes = (minutes: number) => {
-    setDeadline(dayjs().add(minutes, "minute").format("YYYY-MM-DDTHH:mm"));
+    setDeadline((prev) => addMinutesToLocalDatetime(prev, minutes));
   };
 
   const resetDeadlineToNow = () => {
@@ -607,7 +624,7 @@ const App = () => {
   };
 
   return (
-    <div className={`relative h-full w-full ${miniMode ? "p-2" : "p-6"}`}>
+    <div className={`relative h-full w-full ${miniMode ? "p-0" : "p-0"}`}>
       <div className="relative h-full w-full">
         {!miniMode && scrollMetrics.show ? (
           <div
@@ -871,7 +888,7 @@ const App = () => {
                                     restore: t.restore,
                                     complete: t.complete
                                   }}
-                                  dragHandleProps={dragHandleProps}
+                                  dragHandleProps={settings.manualOrderPriority ? dragHandleProps : undefined}
                                 />
                               )}
                             </SortableTaskItem>

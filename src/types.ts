@@ -40,6 +40,7 @@ export interface IpcApi {
   saveWindowState: (state: WindowState) => Promise<void>;
   resizeWindow: (size: WindowSize) => Promise<void>;
   setWindowMode: (mode: WindowMode) => Promise<void>;
+  getWindowMode: () => Promise<WindowMode>;
   minimize: () => Promise<void>;
   close: () => Promise<void>;
   onWindowModeChanged: (callback: (mode: WindowMode) => void) => () => void;

@@ -1,7 +1,28 @@
-import { app, BrowserWindow, Menu, Tray, ipcMain } from "electron";
+import { app, BrowserWindow, Menu, Tray, ipcMain, screen } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 import Store from "electron-store";
+
+// Debug logging to file
+const logFilePath = path.join(app.getPath("userData"), "debug.log");
+const debugLog = (message: string) => {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
+  console.log(message);
+  try {
+    fs.appendFileSync(logFilePath, logMessage);
+  } catch {
+    // Ignore write errors
+  }
+};
+
+// Clear log on startup
+try {
+  fs.writeFileSync(logFilePath, `=== App Started at ${new Date().toISOString()} ===\n`);
+} catch {
+  // Ignore
+}
 import type {
   AppSettings,
   SortMode,
@@ -90,16 +111,65 @@ let saveWindowStateTimer: NodeJS.Timeout | null = null;
 const defaultWindowSize = { width: 420, height: 720 };
 const miniHeight = 78;
 
-const createWindow = () => {
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  const savedState = store.get("windowStateNormal") ?? store.get("windowState");
-  const settings = clampSettings(store.get("settings"));
+// Validate window bounds to ensure visibility on screen
+const validateWindowBounds = (bounds: { x?: number; y?: number; width: number; height: number }) => {
+  const displays = screen.getAllDisplays();
+  const { x, y, width, height } = bounds;
 
-  const win = new BrowserWindow({
-    width: savedState?.width ?? defaultWindowSize.width,
-    height: savedState?.height ?? defaultWindowSize.height,
+  if (x === undefined || y === undefined) {
+    return { x: undefined, y: undefined, width, height };
+  }
+
+  const isVisibleOnAnyDisplay = displays.some(display => {
+    const { x: dx, y: dy, width: dw, height: dh } = display.bounds;
+    const visibleX = x + 100 > dx && x < dx + dw;
+    const visibleY = y + 50 > dy && y < dy + dh;
+    return visibleX && visibleY;
+  });
+
+  if (isVisibleOnAnyDisplay) {
+    return { x, y, width, height };
+  }
+
+  console.log("[Window] Saved position is off-screen, centering window");
+  return { x: undefined, y: undefined, width, height };
+};
+
+const createWindow = () => {
+  debugLog("createWindow() called");
+  debugLog(`app.isPackaged: ${app.isPackaged}`);
+  debugLog(`app.getAppPath(): ${app.getAppPath()}`);
+
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  debugLog(`currentDir: ${currentDir}`);
+
+  const savedState = store.get("windowStateNormal") ?? store.get("windowState");
+  debugLog(`savedState: ${JSON.stringify(savedState)}`);
+
+  const settings = clampSettings(store.get("settings"));
+  debugLog(`settings.startMode: ${settings.startMode}`);
+  debugLog(`settings.alwaysOnTop: ${settings.alwaysOnTop}`);
+
+  // Validate saved window position
+  const validatedBounds = validateWindowBounds({
     x: savedState?.x,
     y: savedState?.y,
+    width: savedState?.width ?? defaultWindowSize.width,
+    height: savedState?.height ?? defaultWindowSize.height
+  });
+  debugLog(`validatedBounds: ${JSON.stringify(validatedBounds)}`);
+
+  const preloadPath = path.join(currentDir, "preload.cjs");
+  debugLog(`preloadPath: ${preloadPath}`);
+  debugLog(`preload exists: ${fs.existsSync(preloadPath)}`);
+
+  debugLog("Creating BrowserWindow...");
+  const win = new BrowserWindow({
+    width: validatedBounds.width,
+    height: validatedBounds.height,
+    x: validatedBounds.x,
+    y: validatedBounds.y,
+    show: true,
     transparent: true,
     frame: false,
     alwaysOnTop: settings.alwaysOnTop,
@@ -107,18 +177,45 @@ const createWindow = () => {
     hasShadow: false,
     backgroundColor: "#00000000",
     webPreferences: {
-      preload: path.join(currentDir, "preload.cjs"),
+      preload: preloadPath,
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true
     }
   });
 
+  debugLog(`BrowserWindow created. ID: ${win.id}`);
+  debugLog(`Window bounds after creation: ${JSON.stringify(win.getBounds())}`);
+  debugLog(`Window isVisible: ${win.isVisible()}`);
+
   const devServerUrl = process.env.VITE_DEV_SERVER_URL || "http://localhost:5173";
 
+  // Error handling for debugging
+  win.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
+    debugLog(`LOAD FAILED: ${errorCode} - ${errorDescription}`);
+  });
+
+  win.webContents.on("did-finish-load", () => {
+    debugLog("did-finish-load event fired");
+    win.show();
+    debugLog(`After show() - isVisible: ${win.isVisible()}`);
+  });
+
+  win.on("ready-to-show", () => {
+    debugLog("ready-to-show event fired");
+  });
+
   if (app.isPackaged) {
-    win.loadFile(path.join(currentDir, "../dist/index.html"));
+    const indexPath = path.join(app.getAppPath(), "dist", "index.html");
+    debugLog(`Packaged mode. indexPath: ${indexPath}`);
+    debugLog(`index.html exists: ${fs.existsSync(indexPath)}`);
+    win.loadFile(indexPath).then(() => {
+      debugLog("loadFile() promise resolved");
+    }).catch((err) => {
+      debugLog(`loadFile() ERROR: ${err.message}`);
+    });
   } else {
+    debugLog(`Dev mode. Loading URL: ${devServerUrl}`);
     win.loadURL(devServerUrl);
     win.webContents.openDevTools({ mode: "detach" });
   }
@@ -223,7 +320,7 @@ const buildTrayMenu = () => {
 };
 
 const createTray = () => {
-  const iconPath = path.join(app.getAppPath(), "error.png");
+  const iconPath = path.join(app.getAppPath(), "icon.png");
   tray = new Tray(iconPath);
   tray.setToolTip("Todos Overlay");
   tray.setContextMenu(buildTrayMenu());
@@ -315,6 +412,7 @@ app.whenReady().then(() => {
       win?.webContents.send("window:mode-changed", mode);
     }
   });
+  ipcMain.handle("window:mode:get", () => store.get("windowMode"));
   ipcMain.handle("window:resize", (event, size: WindowSize) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return;

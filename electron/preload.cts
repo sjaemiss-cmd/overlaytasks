@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("api", {
   saveWindowState: (state: WindowState) => ipcRenderer.invoke("window:set", state),
   resizeWindow: (size: WindowSize) => ipcRenderer.invoke("window:resize", size),
   setWindowMode: (mode: WindowMode) => ipcRenderer.invoke("window:mode", mode),
+  getWindowMode: () => ipcRenderer.invoke("window:mode:get") as Promise<WindowMode>,
   minimize: () => ipcRenderer.invoke("window:minimize"),
   close: () => ipcRenderer.invoke("window:close"),
   setAlwaysOnTop: (enabled: boolean) => ipcRenderer.invoke("window:always-on-top", enabled),
