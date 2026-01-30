@@ -139,6 +139,7 @@ const App = () => {
         status: "상태",
         ready: "준비됨",
         notReady: "설정 필요",
+        missingConfig: "누락된 설정",
         loggedInAs: "로그인됨:",
         notLoggedIn: "로그인되지 않음"
       },
@@ -207,6 +208,7 @@ const App = () => {
         status: "Status",
         ready: "Ready",
         notReady: "Not Configured",
+        missingConfig: "Missing configuration",
         loggedInAs: "Logged in as:",
         notLoggedIn: "Not logged in"
       }
@@ -218,6 +220,15 @@ const App = () => {
   const rafRef = useRef<number | null>(null);
   const dragStateRef = useRef({ isDragging: false, startY: 0, startScrollTop: 0 });
   const scrollHideTimerRef = useRef<number | null>(null);
+  const missingConfigKeys = useMemo(() => {
+    if (!cloudConfigStatus || cloudConfigStatus.isReady) return [] as string[];
+    const keys: string[] = [];
+    if (!cloudConfigStatus.hasFirebaseWebApiKey) keys.push("FIREBASE_WEB_API_KEY");
+    if (!cloudConfigStatus.hasFirebaseProjectId) keys.push("FIREBASE_PROJECT_ID");
+    if (!cloudConfigStatus.hasGoogleOAuthClientId) keys.push("GOOGLE_OAUTH_CLIENT_ID");
+    if (!cloudConfigStatus.hasOauthRedirectScheme) keys.push("OAUTH_REDIRECT_SCHEME");
+    return keys;
+  }, [cloudConfigStatus]);
   const [scrollState, setScrollState] = useState({
     scrollTop: 0,
     scrollHeight: 1,
@@ -686,6 +697,7 @@ const App = () => {
 
   return (
     <div className={`relative h-full w-full ${miniMode ? "p-0" : "p-0"}`}>
+      {!miniMode && <div className="absolute inset-0 -z-10 bg-slate-900" />}
       <div className="relative h-full w-full">
         {!miniMode && scrollMetrics.show ? (
           <div
@@ -766,6 +778,7 @@ const App = () => {
                     ? `w-full px-2 py-2${miniUrgent ? " heartbeat" : ""}`
                     : "min-h-[52px]"
                 }
+                miniMode={miniMode}
                 actions={
                   <div
                     className={miniMode ? "flex items-center gap-1" : "flex items-center gap-2"}
@@ -1129,6 +1142,11 @@ const App = () => {
                           <div className={`h-2 w-2 rounded-full ${cloudConfigStatus?.isReady ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]"}`} />
                           {cloudConfigStatus?.isReady ? t.ready : t.notReady}
                         </div>
+                        {missingConfigKeys.length > 0 ? (
+                          <div className="text-[10px] text-rose-300">
+                            {t.missingConfig}: {missingConfigKeys.join(", ")}
+                          </div>
+                        ) : null}
                       </div>
                       {activeProfileKey && activeProfileKey !== "local" ? (
                         <button
@@ -1143,7 +1161,7 @@ const App = () => {
                           type="button"
                           className="accent-button no-drag rounded-xl border border-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed"
                           onClick={handleLogin}
-                          disabled={!cloudConfigStatus?.isReady}
+                          disabled={cloudConfigStatus?.isReady === false}
                         >
                           {t.login}
                         </button>

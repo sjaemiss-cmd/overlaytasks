@@ -368,9 +368,27 @@ const startSyncLoop = (profileKey: string) => {
     return;
   }
 
+  // Prime local state from remote if empty to ensure tasks appear on startup
+  const primeIfEmpty = async () => {
+    const state = getProfilesSafe()[profileKey] ?? emptyProfileState();
+    if (state.tasks.length > 0) {
+      return false;
+    }
+    if (state.syncCursor) {
+      debugLog(`[Sync] Empty tasks with existing cursor (${state.syncCursor}); forcing remote prime.`);
+    }
+    const result = await syncEngine.primeProfileFromRemote(profileKey);
+    return result.didApply;
+  };
+
   // Run sync immediately on startup, then continue with interval
   debugLog(`[Sync] Starting sync loop for profile: ${profileKey}. Initial tick...`);
-  void syncEngine.tick(profileKey).then(() => {
+  void primeIfEmpty().then((didApply) => {
+    // Always notify frontend to reload tasks when sync completes on startup
+    mainWindow?.webContents.send("tasks:changed");
+    debugLog(`[Sync] primeIfEmpty completed, didApply: ${didApply}, notified frontend`);
+    return syncEngine.tick(profileKey);
+  }).then(() => {
     debugLog(`[Sync] Initial tick completed`);
   }).catch((err) => {
     const msg = err instanceof Error ? err.message : String(err);
@@ -632,11 +650,19 @@ const createWindow = () => {
   debugLog(`settings.alwaysOnTop: ${settings.alwaysOnTop}`);
 
   // Validate saved window position
+  const savedWidth = savedState?.width ?? defaultWindowSize.width;
+  const savedHeight = savedState?.height ?? defaultWindowSize.height;
+
+  // Reset to default if saved size is significantly larger than content needs
+  // This prevents windows from being too large and having empty space around content
+  const widthToUse = savedWidth > defaultWindowSize.width * 1.5 ? defaultWindowSize.width : savedWidth;
+  const heightToUse = savedHeight > defaultWindowSize.height * 1.5 ? defaultWindowSize.height : savedHeight;
+
   const validatedBounds = validateWindowBounds({
     x: savedState?.x,
     y: savedState?.y,
-    width: savedState?.width ?? defaultWindowSize.width,
-    height: savedState?.height ?? defaultWindowSize.height
+    width: widthToUse,
+    height: heightToUse
   });
   debugLog(`validatedBounds: ${JSON.stringify(validatedBounds)}`);
 
@@ -683,6 +709,13 @@ const createWindow = () => {
 
     if (pendingDeepLinkUrl) {
       win.webContents.send("auth:deep-link", pendingDeepLinkUrl);
+    }
+
+    // 로그인된 프로필이 있으면 프론트가 준비된 후 세션 변경 이벤트 발송
+    const activeProfile = getActiveProfileKey();
+    if (activeProfile !== "local") {
+      debugLog(`[App] Frontend ready, notifying of logged-in profile: ${activeProfile}`);
+      win.webContents.send("auth:session-changed", activeProfile);
     }
   });
 
@@ -894,7 +927,7 @@ app.whenReady().then(() => {
     debugLog(`[IPC] Returning ${tasks.length} tasks`);
     return tasks;
   });
-  ipcMain.handle("tasks:set", (_event, tasks: Task[]) => {
+  ipcMain.handle("tasks:set", async (_event, tasks: Task[]) => {
     const safeTasks = Array.isArray(tasks) ? tasks.filter(isTask) : [];
     const { key, state } = getActiveProfile();
 
@@ -909,6 +942,29 @@ app.whenReady().then(() => {
     }
 
     const profiles = getProfilesSafe();
+    const shouldPrime = state.tasks.length === 0;
+
+    // Prevent mass deletion: if frontend sends empty tasks but we have existing tasks in state,
+    // this means the frontend hasn't loaded properly yet. Skip to avoid deleting all tasks.
+    if (safeTasks.length === 0 && state.tasks.length > 0) {
+      debugLog("[Sync] Skipping tasks:set - received empty tasks but state has existing tasks. Preventing accidental mass deletion.");
+      return;
+    }
+
+    if (shouldPrime) {
+      debugLog("[Sync] Skipping tasks:set until profile is primed from remote");
+      try {
+        const result = await syncEngine.primeProfileFromRemote(key);
+        if (result.didApply) {
+          mainWindow?.webContents.send("tasks:changed");
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        debugLog(`[Sync] primeProfileFromRemote failed: ${msg}`);
+        mainWindow?.webContents.send("sync:error", msg);
+      }
+      return;
+    }
     const nextOrder = state.taskOrder.length > 0
       ? state.taskOrder.filter((id) => safeTasks.some((task) => task.id === id))
       : [];

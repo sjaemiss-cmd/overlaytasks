@@ -103,7 +103,6 @@ const TaskItem = ({
               aria-label="Drag task"
             />
           ) : null}
-          <span className="text-slate-200/80">{labels.deadline}</span>
         </div>
         <span className="font-semibold">{formatDeadline(task.deadline)}</span>
       </div>
@@ -142,7 +141,7 @@ const TaskItem = ({
       )}
       <div className="mt-3">
         <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-slate-200/70">
-        <span>{labels.timeRemaining}</span>
+          <span>{labels.timeRemaining}</span>
           <span>{Math.max(0, minutesLeft)} min</span>
         </div>
         <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/15">

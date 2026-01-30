@@ -221,5 +221,58 @@ export const createSyncEngine = (deps: SyncEngineDeps) => {
     }
   };
 
-  return { tick, buildOpsFromTaskSet };
+  const primeProfileFromRemote = async (profileKey: string) => {
+    console.log(`[SyncEngine] primeProfileFromRemote called for: ${profileKey}`);
+    if (profileKey === "local") {
+      console.log(`[SyncEngine] Skipping local profile`);
+      return { didApply: false };
+    }
+    try {
+      console.log(`[SyncEngine] Creating Firestore client...`);
+      const client = createClient(profileKey);
+      console.log(`[SyncEngine] Querying all tasks from Firestore...`);
+      const rows = await client.queryAllTasks(profileKey);
+      console.log(`[SyncEngine] Received ${rows.length} task rows from Firestore`);
+
+      // Log each task for debugging
+      for (const row of rows) {
+        console.log(`[SyncEngine] Task: "${row.task.title}" status=${row.task.status} deletedAt=${row.meta.deletedAt || 'null'}`);
+      }
+
+      const nextTasks = rows
+        .filter((row) => !row.meta.deletedAt)
+        .map((row) => row.task);
+      console.log(`[SyncEngine] Filtered to ${nextTasks.length} active tasks`);
+
+      const nextMeta: Record<string, TaskMeta> = {};
+      let maxCursor = new Date(0).toISOString();
+      for (const row of rows) {
+        const updatedAt = normalizeIso(row.meta.updatedAt);
+        nextMeta[row.task.id] = {
+          updatedAt,
+          ...(row.meta.deletedAt ? { deletedAt: row.meta.deletedAt } : {})
+        };
+        if (updatedAt > maxCursor) {
+          maxCursor = updatedAt;
+        }
+      }
+
+      const state = deps.getProfileState(profileKey);
+      const nextState: ProfileLocalState = {
+        ...state,
+        tasks: nextTasks,
+        taskMeta: nextMeta,
+        syncCursor: maxCursor
+      };
+
+      console.log(`[SyncEngine] Saving ${nextTasks.length} tasks to local state`);
+      deps.setProfileState(profileKey, nextState);
+      return { didApply: true };
+    } catch (err) {
+      console.error(`[SyncEngine] primeProfileFromRemote FAILED:`, err);
+      throw err;
+    }
+  };
+
+  return { tick, buildOpsFromTaskSet, primeProfileFromRemote };
 };

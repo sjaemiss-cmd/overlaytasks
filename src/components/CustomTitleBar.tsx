@@ -6,6 +6,7 @@ interface CustomTitleBarProps {
   progress?: number;
   actions?: ReactNode;
   className?: string;
+  miniMode?: boolean;
 }
 
 const CustomTitleBar = ({
@@ -13,14 +14,15 @@ const CustomTitleBar = ({
   titleContent,
   progress,
   actions,
-  className
+  className,
+  miniMode = false
 }: CustomTitleBarProps) => {
   const hasTitle = Boolean(titleContent) || title.trim().length > 0;
   return (
     <div
       className={`drag-region sticky top-0 z-20 ${className ?? ""}`}
     >
-      <div className="panel-glass-strong relative overflow-hidden rounded-2xl px-4 py-3">
+      <div className={`panel-glass-strong relative overflow-hidden px-4 py-3 ${miniMode ? "rounded-2xl" : ""}`}>
         {typeof progress === "number" ? (
           <div className="absolute inset-0">
             <div className="h-full w-full bg-white/5" />
@@ -31,9 +33,8 @@ const CustomTitleBar = ({
           </div>
         ) : null}
         <div
-          className={`relative z-10 flex items-center ${
-            hasTitle ? "justify-between" : "justify-end"
-          }`}
+          className={`relative z-10 flex items-center ${hasTitle ? "justify-between" : "justify-end"
+            }`}
         >
           {hasTitle ? (
             <div className="text-sm font-semibold tracking-[0.2em] text-slate-200">
@@ -48,3 +49,4 @@ const CustomTitleBar = ({
 };
 
 export default CustomTitleBar;
+
